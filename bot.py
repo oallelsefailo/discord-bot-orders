@@ -7,6 +7,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import logging
+
+logging.basicConfig(
+    filename="discordbot.log",
+    filemode="a",
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+
+
 # Your Discord bot token from the .env file
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -41,18 +51,23 @@ client = commands.Bot(command_prefix="!", intents=intents)
 tree = client.tree
 
 # Slash command registration - with GUILD specified
-@tree.command(name="orderbot", description="Get today's Flag 2 order count", guild=GUILD_ID)
+@tree.command(name="orderbot", description="Get Flag 2 order count", guild=GUILD_ID)
 async def orderbot(interaction: discord.Interaction):
-    await interaction.response.defer()
-    count = get_orderbot_flag2_count()
-    await interaction.followup.send(f"🧾 Flag 2 count for today: **{count}**")
+    try:
+        await interaction.response.defer()
+        count = get_orderbot_flag2_count()
+        await interaction.followup.send(f"🧾 Flag 2 count today: **{count}**")
+        logging.info(f"Handled /orderbot command. Count: {count}")
+    except Exception as e:
+        logging.error(f"Error in orderbot command: {e}")
+
 
 # Bot startup logic
 @client.event
 async def on_ready():
-    print(f"✅ Logged in as {client.user} (ID: {client.user.id})")
+    logging.info(f"Logged in as {client.user} (ID: {client.user.id})")
     await tree.sync(guild=GUILD_ID)
-    print("✅ Slash commands synced.")
+    logging.info("Slash commands synced.")
 
 # Run the bot
 client.run(TOKEN)
