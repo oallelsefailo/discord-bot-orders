@@ -1,21 +1,26 @@
-2025-08-05 15:31:36,264 - WARNING - PyNaCl is not installed, voice will NOT be supported
-2025-08-05 15:31:36,266 - WARNING - Privileged message content intent is missing, commands may not work as expected.
-2025-08-05 15:31:36,266 - INFO - logging in using static token
-2025-08-05 15:31:37,319 - INFO - Shard ID None has connected to Gateway (Session ID: 4ea82eb413f647c1a77f604a7978a3cb).
-2025-08-05 15:31:39,327 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
-2025-08-05 15:31:39,542 - INFO - Slash commands synced.
-2025-08-05 15:31:45,394 - ERROR - Error in orderbot command: ('28000', "[28000] [Microsoft][ODBC SQL Server Driver][SQL Server]Login failed for user 'DMC\\NZXT-WEB$'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC SQL Server Driver][SQL Server]Login failed for user 'DMC\\NZXT-WEB$'. (18456)")
-2025-08-05 15:33:06,394 - WARNING - PyNaCl is not installed, voice will NOT be supported
-2025-08-05 15:33:06,396 - WARNING - Privileged message content intent is missing, commands may not work as expected.
-2025-08-05 15:33:06,396 - INFO - logging in using static token
-2025-08-05 15:33:07,479 - INFO - Shard ID None has connected to Gateway (Session ID: 9ecedf449677c1e236811ded5b2d84a2).
-2025-08-05 15:33:09,488 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
-2025-08-05 15:33:09,651 - INFO - Slash commands synced.
-2025-08-05 15:33:20,287 - ERROR - Error in orderbot command: ('28000', "[28000] [Microsoft][ODBC SQL Server Driver][SQL Server]Login failed for user 'DMC\\NZXT-WEB$'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC SQL Server Driver][SQL Server]Login failed for user 'DMC\\NZXT-WEB$'. (18456)")
-2025-08-05 15:34:13,582 - WARNING - PyNaCl is not installed, voice will NOT be supported
-2025-08-05 15:34:13,584 - WARNING - Privileged message content intent is missing, commands may not work as expected.
-2025-08-05 15:34:13,584 - INFO - logging in using static token
-2025-08-05 15:34:14,437 - INFO - Shard ID None has connected to Gateway (Session ID: 292336d944b492ebd30ca5fecf07b8bd).
-2025-08-05 15:34:16,451 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
-2025-08-05 15:34:16,660 - INFO - Slash commands synced.
-2025-08-05 15:34:23,828 - INFO - Handled /orderbot command. Count: 5
+2025-08-26 12:47:20,459 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-08-26 12:47:20,461 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2025-08-26 12:47:20,462 - INFO - logging in using static token
+2025-08-26 12:47:21,401 - INFO - Shard ID None has connected to Gateway (Session ID: e0bfcadd6466dbf31594c605d0d6e52e).
+2025-08-26 12:47:23,407 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2025-08-26 12:47:23,644 - INFO - Slash commands synced.
+2025-08-26 12:47:37,808 - INFO - Handled /orderbot flag2. Count: 21
+2025-08-26 12:47:45,664 - INFO - Handled /orderbot order. Token: 1000737900 -> Order # 1844924 (Magento # 1000737900) | DP138-90M x 12 | MG3-94 x 14 | TM2B-PSS x 14 | Shipped: FedEx Ground | FOB: 1
+2025-08-26 12:49:00,573 - INFO - Handled /orderbot order. Token: 1844920 -> Order # 1844920 (Magento # 1000737894) | TM1-61 x 5 | TM1-90 x 5 | Shipped: FedEx Ground | FOB: 1
+2025-08-26 12:54:28,271 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-08-26 12:54:28,273 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2025-08-26 12:54:28,273 - INFO - logging in using static token
+2025-08-26 12:54:29,324 - INFO - Shard ID None has connected to Gateway (Session ID: 6788deab19271294c4757b975b203e22).
+2025-08-26 12:54:31,336 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2025-08-26 12:54:31,528 - INFO - Slash commands synced.
+2025-08-26 12:54:38,755 - INFO - Handled /orderbot order. Token: 1844921 -> Order # 1844921 (Magento # 1000737896) | DP3A-3 x 24 | STDW050-3 x 48 | DP3A-26D x 12 | STDW050-26 x 24 | Shipped: Fed Ex 2nd Day | FOB: 1
+2025-08-26 12:55:13,616 - INFO - Handled /orderbot flag2. Count: 19
+2025-08-26 12:55:31,613 - INFO - Handled /orderbot order. Token: 1844921 -> Order # 1844921 (Magento # 1000737896) | DP3A-3 x 24 | STDW050-3 x 48 | DP3A-26D x 12 | STDW050-26 x 24 | Shipped: Fed Ex 2nd Day | FOB: 1
+2025-08-26 12:59:50,330 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-08-26 12:59:50,332 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2025-08-26 12:59:50,332 - INFO - logging in using static token
+2025-08-26 12:59:51,645 - INFO - Shard ID None has connected to Gateway (Session ID: 3e4b58f65c7e7d6e999892d97abc79d5).
+2025-08-26 12:59:53,658 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2025-08-26 12:59:53,810 - INFO - Slash commands synced.
+2025-08-26 13:00:00,726 - INFO - Handled /orderbot order. Token: 1844917 -> Order # 1844917 (Magento # 1000737891) | DP128/9-90M x 8 | MTR100 x 16 | Shipped: FedEx Saver | FOB: 1
+2025-08-26 13:05:21,503 - INFO - Shard ID None has successfully RESUMED session 3e4b58f65c7e7d6e999892d97abc79d5.

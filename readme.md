@@ -1,50 +1,68 @@
 # OrderBot (Discord + MSSQL)
 
-This is my personal Discord bot that pulls the total count of `flag = 2` orders from our SQL Server database using a slash command. It checks the past 3 days (including today) and returns the result when I type `/orderbot`.
+A lightweight Discord bot that surfaces key order info from SQL Server with slash commands.
 
-## 🔧 Setup Notes
+**Commands:**
+- `/orderbot flag2` → count of recent **Flag 2** orders  
+- `/orderbot order <number>` → clean, styled **order summary** by internal ID *or* Magento order #
 
-I already have the following installed:
+---
+
+## 🔧 Setup
+
+**Prereqs**
 - Python 3.12
-- `discord.py`, `pyodbc`, `python-dotenv`
+- Packages: `discord.py`, `pyodbc`, `python-dotenv`
 
-To install dependencies if needed:
-```bash
+Install (if needed):
+~~~bash
 pip install discord.py pyodbc python-dotenv
-```
+~~~
 
-To manually run the bot (when testing something in VSCode or terminal):
-```bash
+**Environment**
+- Create a `.env` file next to `bot.py` with:
+  ~~~
+  DISCORD_TOKEN=your-bot-token-here
+  ~~~
+- SQL Server connection uses Windows Authentication (see `conn_str` in `bot.py`).
+
+**Run locally (for testing)**
+~~~bash
 python bot.py
-```
+~~~
 
-## 🪟 Running as a Background Windows Service
+---
 
-Using NSSM to keep the bot running even when VSCode is closed.
+## 🪟 Running as a Windows Service (NSSM)
 
-### Service Control Commands
+The bot runs as a background service via NSSM. Restart after any code change.
 
-```bash
+Service control:
+~~~bash
 "C:\nssm-2.24\win64\nssm.exe" start DiscordOrderBot
-"C:\nssm-2.24\win64\nssm.exe" stop DiscordOrderBot
+"C:\nssm-2.24\win64\nssm.exe" stop  DiscordOrderBot
 "C:\nssm-2.24\win64\nssm.exe" restart DiscordOrderBot
-```
+"C:\nssm-2.24\win64\nssm.exe" status DiscordOrderBot  
+"C:\nssm-2.24\win64\nssm.exe" edit   DiscordOrderBot 
+~~~
 
-> No need to touch anything in VSCode or the terminal once it's set as a service.
+---
 
-## ✅ Slash Command
+## ✅ Slash Commands
 
-### `/orderbot`
-
-This sends back the count of orders where:
+### `/orderbot flag2`
+Returns count of orders where:
 - `order_type = 11`
 - `order_flag = 2`
-- `added_date` is within the last 3 days
 
-That's it. I made this so I don't have to open SSMS or run queries manually.
+---
 
-## 💭 Notes to Self
+### `/orderbot order <number>`
+Accepts **internal order ID** (e.g., `18XXXX`) **or** **Magento order #**.
 
-- The bot must be restarted after code changes.
-- Enabled logging incase of errors.
+
+Notes:
+- SKUs show as inline code with a proper “×”.
+- “Shipped” and “FOB” are plain text separated by a pipe.
+- Magento number is italicized; Order # is bold.
 
