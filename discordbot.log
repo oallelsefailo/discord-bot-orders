@@ -24,3 +24,17 @@
 2025-08-26 12:59:53,810 - INFO - Slash commands synced.
 2025-08-26 13:00:00,726 - INFO - Handled /orderbot order. Token: 1844917 -> Order # 1844917 (Magento # 1000737891) | DP128/9-90M x 8 | MTR100 x 16 | Shipped: FedEx Saver | FOB: 1
 2025-08-26 13:05:21,503 - INFO - Shard ID None has successfully RESUMED session 3e4b58f65c7e7d6e999892d97abc79d5.
+2025-08-26 13:30:21,123 - INFO - Handled /orderbot flag2. Count: 18
+2025-08-26 13:44:27,625 - INFO - Shard ID None has successfully RESUMED session 3e4b58f65c7e7d6e999892d97abc79d5.
+2025-08-26 14:07:30,625 - INFO - Handled /orderbot flag2. Count: 13
+2025-08-26 14:40:46,418 - INFO - Handled /orderbot flag2. Count: 12
+2025-08-26 14:51:12,202 - INFO - Handled /orderbot flag2. Count: 12
+2025-08-26 15:04:39,646 - INFO - Handled /orderbot flag2. Count: 14
+2025-08-26 15:35:31,710 - INFO - Handled /orderbot order. Token: 1845082 -> Not found: 1845082
+2025-08-26 15:36:15,340 - INFO - Handled /orderbot order. Token: 1000737994 -> Not found: 1000737994
+2025-08-26 15:37:17,587 - INFO - Handled /orderbot order. Token: 1000738008 -> Not found: 1000738008
+2025-08-26 15:40:48,449 - INFO - Handled /orderbot order. Token: 1845136 -> Not found: 1845136
+2025-08-26 15:41:21,805 - INFO - Handled /orderbot order. Token: 1000738017 -> Not found: 1000738017
+2025-08-26 15:41:48,668 - INFO - Handled /orderbot flag2. Count: 9
+2025-08-26 15:42:17,627 - INFO - Handled /orderbot order. Token: 1845127 -> Not found: 1845127
+2025-08-26 15:45:37,030 - INFO - Handled /orderbot flag2. Count: 9

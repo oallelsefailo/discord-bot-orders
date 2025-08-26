@@ -39,14 +39,23 @@ WHERE order_type = 11
 
 # Parameterized summary query. Accepts either internal order_id OR Magento order number (sales_orders.po_no).
 ORDER_SUMMARY_SQL = r"""
-DECLARE @order_token NVARCHAR(64) = ?;  -- bound by pyodbc
-DECLARE @order_no INT = NULL;
+DECLARE @order_token NVARCHAR(64);
+SET @order_token = ?;  -- pyodbc binds here
 
--- numeric-only → maybe an order_id or order_seq
-DECLARE @maybe_num BIGINT;
-SET @maybe_num = CASE WHEN @order_token NOT LIKE '%[^0-9]%' THEN CAST(@order_token AS BIGINT) ELSE NULL END;
+DECLARE @order_no NUMERIC(20,0) = NULL;
 
--- 1) Direct match on internal order_id
+-- normalize token: trim, strip a leading '#'
+DECLARE @token NVARCHAR(64) = LTRIM(RTRIM(@order_token));
+IF LEFT(@token,1) = '#'
+    SET @token = SUBSTRING(@token, 2, 63);
+
+-- numeric-only? could be order_id or order_seq
+DECLARE @maybe_num NUMERIC(20,0) = CASE 
+    WHEN @token NOT LIKE '%[^0-9]%' AND LEN(@token) > 0 THEN TRY_CAST(@token AS NUMERIC(20,0)) 
+    ELSE NULL 
+END;
+
+-- 1) direct internal order_id
 IF @maybe_num IS NOT NULL AND @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = o.order_id
@@ -54,15 +63,15 @@ BEGIN
     WHERE o.order_id = @maybe_num;
 END
 
--- 2) Match Magento order number stored in sales_orders.po_no
+-- 2) exact match on po_no (web/Magento orders). We already stripped '#', so compare to @token.
 IF @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = o.order_id
     FROM sales_orders AS o
-    WHERE LTRIM(RTRIM(o.po_no)) = LTRIM(RTRIM(@order_token));
+    WHERE LTRIM(RTRIM(o.po_no)) = @token;
 END
 
--- 3) (Optional) If they typed an order_seq, resolve via lines
+-- 3) numeric line order_seq → order_id
 IF @maybe_num IS NOT NULL AND @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = l.order_id
@@ -89,7 +98,7 @@ line_data AS (
                     THEN SUBSTRING(LTRIM(RTRIM(l.part_no)), 3, 100)
                 ELSE LTRIM(RTRIM(l.part_no))
               END,
-        qty = CAST(l.order_qty AS INT),   -- swap to l.ship_qty if you prefer shipped quantities
+        qty = CAST(l.order_qty AS INT),
         line_order = l.order_seq
     FROM sales_order_lines l
     WHERE l.order_id = @order_no
@@ -105,8 +114,7 @@ ship AS (
           END,
         fob_point = COALESCE(i.fob_point, o.fob_point)
     FROM sales_orders o
-    LEFT JOIN ship_vias v
-      ON v.via_code = o.via_code
+    LEFT JOIN ship_vias v ON v.via_code = o.via_code
     OUTER APPLY (
         SELECT TOP 1 inv.fob_point
         FROM invoices inv
@@ -120,12 +128,12 @@ SELECT
         'Order # ' + CAST(@order_no AS VARCHAR(20)) +
         CASE WHEN s0.magento_no IS NOT NULL THEN ' (Magento # ' + s0.magento_no + ')' ELSE '' END +
         ' | ' +
-        STUFF((
+        ISNULL(STUFF((
             SELECT ' | ' + ld2.sku + ' x ' + CAST(ld2.qty AS VARCHAR(32))
             FROM line_data ld2
             ORDER BY ld2.line_order
             FOR XML PATH(''), TYPE
-        ).value('.', 'nvarchar(max)'), 1, 3, '') +
+        ).value('.', 'nvarchar(max)'), 1, 3, ''), '(no active lines)') +
         ' | Shipped: ' + ISNULL(s.ship_via, 'Unknown') +
         ' | FOB: '   + ISNULL(CAST(s.fob_point AS VARCHAR(50)), 'Unknown')
 FROM ship s
@@ -140,14 +148,15 @@ def get_flag2_count() -> int:
         return int(cur.fetchone()[0])
 
 def get_order_summary(order_token: str) -> str:
-    # guard absurd input length; keep lightweight
     token = order_token.strip()[:64]
+    if token.startswith("#"):
+        token = token[1:]
     with pyodbc.connect(conn_str) as conn:
         cur = conn.cursor()
         cur.execute(ORDER_SUMMARY_SQL, (token,))
         row = cur.fetchone()
         if not row or row[0] is None:
-            return f"Not found: {token}"
+            return f"Not found: {order_token.strip()}"
         return str(row[0])
     
 def style_summary(summary: str) -> str:
