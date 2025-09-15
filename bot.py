@@ -35,7 +35,7 @@ PALLET_L = 42.0
 PALLET_W = 48.0
 PALLET_H = 5.0
 PALLET_TARE_LB = 50.0
-MAX_TOTAL_H = 60.0
+MAX_TOTAL_H = 65.0
 EPS = 1e-9
 
 # ---------- Queries ----------
@@ -202,8 +202,8 @@ def _fmt_lb(x: float) -> str:
 
 def parse_size(size_str: str) -> tuple[float, float, float]:
     s = size_str.lower().replace("×", "x").replace(",", "x")
-    s = re.sub(r"\s*x\s*", "x", s)         # tighten "  x  " → "x"
-    s = re.sub(r"\s+", "", s)              # remove stray spaces
+    s = re.sub(r"\s*x\s*", "x", s)
+    s = re.sub(r"\s+", "", s)
     parts = s.split("x")
     if len(parts) != 3:
         raise ValueError("Size must be like 'L x W x H' (inches).")
@@ -261,7 +261,7 @@ def fit_on_deck(deck_x: float, deck_y: float):
         }
 
 def layers_max(up_z: float) -> int:
-    usable = MAX_TOTAL_H - PALLET_H  # 55"
+    usable = MAX_TOTAL_H - PALLET_H
     if up_z <= 0:
         return 0
     return max(0, math.floor((usable + EPS) / up_z))
@@ -367,7 +367,7 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
         logging.error(f"Error in /orderbot order: {e}")
         await interaction.followup.send("⚠️ Error fetching order summary.")
 
-@orderbot_group.command(name="dim", description="Palletize boxes on 42x48x5 (max 60\")")
+@orderbot_group.command(name="dim", description="Palletize boxes on 42x48x5 (max 65\")")
 @app_commands.describe(
     size='Box size like "L x W x H" in inches (e.g., 27.3 x 15.9 x 32.9)',
     boxes="Total number of boxes",
@@ -396,7 +396,7 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
             if not any_footprint:
                 await interaction.followup.send("❌ Box footprint will not fit on a 42×48 pallet in any orientation.")
                 return
-            await interaction.followup.send("❌ Box exceeds the 60″ total height limit (55\" usable above pallet) in every orientation.")
+            await interaction.followup.send("❌ Box exceeds the 65\" total height limit (60\" usable above pallet) in every orientation.")
             return
 
         # Orientation wording
