@@ -187,27 +187,31 @@ def get_last_status_change_global():
     """
     Returns:
       (increment_id, datetime, log_line)
-      or (None, None, None) if nothing found
+      or (None, None, None) if nothing found or connection fails
     """
-    import mysql.connector  # safe even if already imported
-
-    conn = mysql.connector.connect(
-        host=MYSQL_HOST,
-        port=MYSQL_PORT,
-        user=MYSQL_USER,
-        password=MYSQL_PASSWORD,
-        database=MYSQL_DB,
-        connection_timeout=5,
-    )
     try:
-        cur = conn.cursor()
-        cur.execute(LAST_STATUS_CHANGE_SQL)
-        row = cur.fetchone()
-        if not row:
-            return (None, None, None)
-        return (row[0], row[1], row[2])
-    finally:
-        conn.close()
+        import mysql.connector
+
+        conn = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DB,
+            connection_timeout=5,
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute(LAST_STATUS_CHANGE_SQL)
+            row = cur.fetchone()
+            if not row:
+                return (None, None, None)
+            return (row[0], row[1], row[2])
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"MySQL connection failed in get_last_status_change_global: {e}")
+        return (None, None, None)
 
 def get_order_summary(order_token: str) -> str:
     token = order_token.strip()[:64]
