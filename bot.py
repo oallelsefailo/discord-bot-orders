@@ -6,6 +6,8 @@ from discord.ext import commands
 import pyodbc
 import math
 import re
+import asyncio
+import mysql.connector
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -29,6 +31,13 @@ conn_str = (
     r"DATABASE=store_db;"
     r"Trusted_Connection=yes;"
 )
+
+# ---------- MySQL (Magento) ----------
+MYSQL_HOST = os.getenv("MYSQL_HOST")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
+MYSQL_DB = os.getenv("MYSQL_DB")
 
 # ---------- Palletization constants ----------
 PALLET_L = 42.0
@@ -149,6 +158,23 @@ SELECT
 FROM ship s
 CROSS JOIN so s0;
 """
+# ---------- MySQL (Magento) query ----------
+LAST_STATUS_CHANGE_SQL = """
+SELECT
+  g.increment_id,
+  STR_TO_DATE(
+    SUBSTRING_INDEX(g.order_status_change_log, ' at ', -1),
+    '%Y-%m-%d %H:%i:%s'
+  ) AS last_status_change_at,
+  g.order_status_change_log
+FROM sales_order_grid g
+WHERE g.order_status_change_log IS NOT NULL
+  AND g.order_status_change_log <> ''
+  AND g.order_status_change_log <> 'N/A'
+  AND DATE(g.created_at) = CURDATE()
+ORDER BY last_status_change_at DESC
+LIMIT 1;
+"""
 
 # ---------- DB helpers ----------
 def get_flag2_count() -> int:
@@ -156,6 +182,32 @@ def get_flag2_count() -> int:
         cur = conn.cursor()
         cur.execute(FLAG2_SQL)
         return int(cur.fetchone()[0])
+    
+def get_last_status_change_global():
+    """
+    Returns:
+      (increment_id, datetime, log_line)
+      or (None, None, None) if nothing found
+    """
+    import mysql.connector  # safe even if already imported
+
+    conn = mysql.connector.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DB,
+        connection_timeout=5,
+    )
+    try:
+        cur = conn.cursor()
+        cur.execute(LAST_STATUS_CHANGE_SQL)
+        row = cur.fetchone()
+        if not row:
+            return (None, None, None)
+        return (row[0], row[1], row[2])
+    finally:
+        conn.close()
 
 def get_order_summary(order_token: str) -> str:
     token = order_token.strip()[:64]
@@ -343,16 +395,38 @@ tree = client.tree
 # Create a slash-command GROUP: /orderbot ...
 orderbot_group = app_commands.Group(name="orderbot", description="Order tools")
 
-@orderbot_group.command(name="flag2", description="Get Flag 2 order count (last 2 days)")
+@orderbot_group.command(
+    name="flag2",
+    description="Get Flag 2 order count (last 2 days) + last Magento status-change time"
+)
 async def orderbot_flag2(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
-        count = get_flag2_count()
-        await interaction.followup.send(f"🧾 Flag 2 count: **{count}**")
-        logging.info(f"Handled /orderbot flag2. Count: {count}")
+
+        # Run both blocking DB calls off the event loop
+        count = await asyncio.to_thread(get_flag2_count)
+        inc_id, last_dt, log_line = await asyncio.to_thread(get_last_status_change_global)
+
+        lines = [f"🧾 Flag 2 count: **{count}**"]
+
+        if inc_id and last_dt:
+            lines.append(
+                f"🕒 Last Magento Status Change: "
+                f"**{last_dt:%m/%d/%Y %I:%M:%S %p}** (Order *#{inc_id}*)"
+            )
+        else:
+            lines.append("🕒 Last Magento Status Change: **(none found)**")
+
+        await interaction.followup.send("\n".join(lines))
+        logging.info(
+            f"/orderbot flag2 -> count={count}, last_magento={inc_id}@{last_dt}"
+        )
+
     except Exception as e:
         logging.error(f"Error in /orderbot flag2: {e}")
-        await interaction.followup.send("⚠️ Error fetching Flag 2 count.")
+        await interaction.followup.send(
+            "⚠️ Error fetching Flag 2 count or Magento status-change info."
+        )
 
 @orderbot_group.command(name="order", description="Get order summary by internal ID or Magento number")
 @app_commands.describe(number="Internal order_id (e.g., 18XXXX) or Magento order # (e.g., 1000XXXX)")
