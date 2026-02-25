@@ -158,6 +158,7 @@ SELECT
 FROM ship s
 CROSS JOIN so s0;
 """
+
 # ---------- MySQL (Magento) query ----------
 LAST_STATUS_CHANGE_SQL = """
 SELECT
@@ -182,7 +183,7 @@ def get_flag2_count() -> int:
         cur = conn.cursor()
         cur.execute(FLAG2_SQL)
         return int(cur.fetchone()[0])
-    
+
 def get_last_status_change_global():
     """
     Returns:
@@ -224,17 +225,17 @@ def get_order_summary(order_token: str) -> str:
         if not row or row[0] is None:
             return f"Not found: {order_token.strip()}"
         return str(row[0])
-    
+
 def style_summary(summary: str) -> str:
     parts = [p.strip() for p in summary.split("|")]
     if len(parts) < 3:
-        return f"🚚 {summary}" 
+        return f"🚚 {summary}"
 
     order_part = parts[0]
     item_parts = [f"`{p.strip().replace(' x ', ' × ')}`" for p in parts[1:-2]]
 
-    shipped_part = parts[-2].strip()  
-    fob_part = parts[-1].strip()    
+    shipped_part = parts[-2].strip()
+    fob_part = parts[-1].strip()
     shipped_fob_line = f"{shipped_part} | {fob_part}"
 
     # Format: Order # **[number]** (Magento *#[number]*)
@@ -250,6 +251,7 @@ def style_summary(summary: str) -> str:
     items_line = " • ".join(item_parts)
     return f"🚚 {order_part}\n{items_line}\n{shipped_fob_line}"
 
+# ---------- Palletization helpers ----------
 def _fmt_in(x: float) -> str:
     return f"{x:.1f}".rstrip('0').rstrip('.') if abs(x - round(x)) > EPS else f"{int(round(x))}"
 
@@ -330,14 +332,41 @@ def orientation_phrase(L: float, W: float, H: float, up_z: float) -> str:
         return abs(a - b) <= 1e-6
 
     if close(up_z, smallest):
-        return f"Lay flat ({_fmt_in(up_z)}\" vertical)"
+        return f"Lay flat ({_fmt_in(up_z)}\" per layer)"
     if close(up_z, largest):
-        return f"Stand up ({_fmt_in(up_z)}\" vertical)"
-    return f"On its side ({_fmt_in(up_z)}\" vertical)"
+        return f"Stand up ({_fmt_in(up_z)}\" per layer)"
+    return f"On its side ({_fmt_in(up_z)}\" per layer)"
 
-def score_orientations(L: float, W: float, H: float):
+def palletize(qty: int, per_layer: int, up_z: float, each_weight_lb: float):
+    pallets = []
+    if per_layer <= 0:
+        return pallets
+    max_layers = layers_max(up_z)
+    if max_layers <= 0:
+        return pallets
+    cap = per_layer * max_layers
+
+    left = qty
+    while left > 0:
+        boxes = min(left, cap)
+        layers_used = max(1, math.ceil(boxes / per_layer))
+        height = PALLET_H + layers_used * up_z
+        weight = PALLET_TARE_LB + boxes * each_weight_lb
+        pallets.append({
+            "boxes": boxes,
+            "layers_used": layers_used,
+            "height": height,
+            "weight": weight,
+        })
+        left -= boxes
+    return pallets
+
+def score_orientations(L: float, W: float, H: float, forced_up: float = None):
     best = None
     for o in enumerate_orientations(L, W, H):
+        if forced_up is not None and abs(o["up_z"] - forced_up) > EPS:
+            continue
+
         deck = fit_on_deck(o["deck_x"], o["deck_y"])
         per_layer = deck["per_layer"]
         if per_layer <= 0:
@@ -367,30 +396,6 @@ def score_orientations(L: float, W: float, H: float):
                 best = cand
     return best
 
-def palletize(qty: int, per_layer: int, up_z: float, each_weight_lb: float):
-    pallets = []
-    if per_layer <= 0:
-        return pallets
-    max_layers = layers_max(up_z)
-    if max_layers <= 0:
-        return pallets
-    cap = per_layer * max_layers
-
-    left = qty
-    while left > 0:
-        boxes = min(left, cap)
-        layers_used = max(1, math.ceil(boxes / per_layer))
-        height = PALLET_H + layers_used * up_z
-        weight = PALLET_TARE_LB + boxes * each_weight_lb
-        pallets.append({
-            "boxes": boxes,
-            "layers_used": layers_used,
-            "height": height,
-            "weight": weight,
-        })
-        left -= boxes
-    return pallets
-
 # ---------- Bot setup ----------
 intents = discord.Intents.default()
 client = commands.Bot(command_prefix="!", intents=intents)
@@ -407,7 +412,6 @@ async def orderbot_flag2(interaction: discord.Interaction):
     try:
         await interaction.response.defer()
 
-        # Run both blocking DB calls off the event loop
         count = await asyncio.to_thread(get_flag2_count)
         inc_id, last_dt, log_line = await asyncio.to_thread(get_last_status_change_global)
 
@@ -447,11 +451,12 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
 
 @orderbot_group.command(name="dim", description="Palletize boxes on 42x48x5 (max 65\")")
 @app_commands.describe(
-    size='Box size like "L x W x H" in inches (e.g., 27.3 x 15.9 x 32.9)',
+    size='Box size as L x W x H in inches (e.g., 27.3 x 15.9 x 32.9)',
     boxes="Total number of boxes",
-    weight="Weight per box (lbs)"
+    weight="Weight per box (lbs)",
+    orientation='Which dimension points up when stacking? Enter L, W, or H. Leave blank for auto.'
 )
-async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, weight: float):
+async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, weight: float, orientation: str = None):
     try:
         await interaction.response.defer()
 
@@ -468,7 +473,23 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
             await interaction.followup.send(f"⚠️ {ve}")
             return
 
-        best = score_orientations(L, W, H)
+        # Resolve forced orientation filter
+        forced_up = None
+        orient_label = None
+        if orientation is not None:
+            o_clean = orientation.strip().upper()
+            if o_clean not in ("L", "W", "H"):
+                await interaction.followup.send('⚠️ `orientation` must be `L`, `W`, or `H` (which dimension points up), or leave it blank for auto.')
+                return
+            if o_clean == "L":
+                forced_up = L
+            elif o_clean == "W":
+                forced_up = W
+            else:
+                forced_up = H
+            orient_label = o_clean
+
+        best = score_orientations(L, W, H, forced_up=forced_up)
         if best is None:
             any_footprint = any(fit_on_deck(o["deck_x"], o["deck_y"])["per_layer"] > 0 for o in enumerate_orientations(L, W, H))
             if not any_footprint:
@@ -492,7 +513,8 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
 
         # Build output
         size_display = re.sub(r"\s+", " ", size.strip())
-        user_line = f"**User input:** [{size_display}; boxes: {boxes}; weight: {_fmt_lb(weight)} lb]"
+        orient_input = f"; orientation: {orient_label}" if orient_label is not None else ""
+        user_line = f"**User input:** [{size_display}; boxes: {boxes}; weight: {_fmt_lb(weight)} lb{orient_input}]"
         header = f"**Orientation:** {orient_text}\n{deck_line}"
         lines = [user_line, header]
 
@@ -516,7 +538,7 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
         await interaction.followup.send("\n".join(lines))
 
         logging.info(
-            f'Handled /orderbot dim. size="{size}" boxes={boxes} weight={weight} '
+            f'Handled /orderbot dim. size="{size}" boxes={boxes} weight={weight} orientation={orientation} '
             f'-> per_layer={best["per_layer"]} layers_max={best["layers_max"]}'
         )
     except Exception as e:
