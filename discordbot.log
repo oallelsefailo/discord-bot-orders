@@ -1,0 +1,8 @@
+2026-04-02 13:46:30,751 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2026-04-02 13:46:30,754 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2026-04-02 13:46:30,754 - INFO - logging in using static token
+2026-04-02 13:46:31,594 - INFO - Shard ID None has connected to Gateway (Session ID: b2c0c021ecff071cf05538cd64584cc6).
+2026-04-02 13:46:33,602 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2026-04-02 13:46:33,893 - INFO - Slash commands synced.
+2026-04-02 13:46:47,270 - INFO - Handled /orderbot order. Token: 1000753434 -> Magento #1000753434
+2026-04-02 13:47:12,114 - INFO - Handled /orderbot order. Token: 1876542 -> Magento #1000757273

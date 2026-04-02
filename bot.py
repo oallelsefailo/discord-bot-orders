@@ -159,6 +159,23 @@ FROM ship s
 CROSS JOIN so s0;
 """
 
+TRUE_ORDER_SQL = """
+SELECT
+  o.increment_id,
+  o.shipping_description,
+  GROUP_CONCAT(
+    CONCAT(i.sku, ' x ', ROUND(i.qty_ordered))
+    ORDER BY i.item_id
+    SEPARATOR ' | '
+  ) AS items
+FROM sales_order o
+JOIN sales_order_item i
+  ON i.order_id = o.entity_id
+WHERE o.increment_id = %s
+  AND i.parent_item_id IS NULL
+GROUP BY o.increment_id, o.shipping_description;
+"""
+
 # ---------- MySQL (Magento) query ----------
 LAST_STATUS_CHANGE_SQL = """
 SELECT
@@ -225,6 +242,34 @@ def get_order_summary(order_token: str) -> str:
         if not row or row[0] is None:
             return f"Not found: {order_token.strip()}"
         return str(row[0])
+    
+def get_true_order_items(order_number: str):
+    """
+    Returns:
+      (increment_id, shipping_description, items_string)
+      or (None, None, None) if not found / connection fails
+    """
+    try:
+        conn = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DB,
+            connection_timeout=5,
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute(TRUE_ORDER_SQL, (order_number.strip().lstrip("#"),))
+            row = cur.fetchone()
+            if not row:
+                return (None, None, None)
+            return (row[0], row[1], row[2])
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"MySQL connection failed in get_true_order_items: {e}")
+        return (None, None, None)
 
 def style_summary(summary: str) -> str:
     parts = [p.strip() for p in summary.split("|")]
@@ -250,6 +295,50 @@ def style_summary(summary: str) -> str:
 
     items_line = " • ".join(item_parts)
     return f"🚚 {order_part}\n{items_line}\n{shipped_fob_line}"
+
+def style_true_order_summary(pos_summary: str, true_increment_id: str, true_ship_via: str, true_items: str) -> str:
+    parts = [p.strip() for p in pos_summary.split("|")]
+
+    if len(parts) < 3:
+        base = f"🚚 {pos_summary}"
+        pos_items_raw = []
+    else:
+        order_part = parts[0]
+        pos_items_raw = parts[1:-2]
+        pos_item_parts = [f"`{p.strip().replace(' x ', ' × ')}`" for p in pos_items_raw]
+        shipped_part = parts[-2].strip()
+        fob_part = parts[-1].strip()
+        shipped_fob_line = f"{shipped_part} | {fob_part}"
+
+        if "(Magento #" in order_part:
+            left, magento = order_part.split("(Magento #", 1)
+            order_num = left.split("Order #", 1)[1].strip()
+            magento_num = magento.strip(" )")
+            order_part = f"Order # **{order_num}** (Magento *#{magento_num}*)"
+        else:
+            order_num = order_part.split("Order #", 1)[1].strip()
+            order_part = f"Order # **{order_num}**"
+
+        pos_items_line = " • ".join(pos_item_parts) if pos_item_parts else "`(no active lines)`"
+        base = f"🚚 {order_part}\nPOS Items: {pos_items_line}\n{shipped_fob_line}"
+
+    true_items_raw = [p.strip() for p in true_items.split("|")] if true_items else []
+    true_item_parts = [f"`{p.replace(' x ', ' × ')}`" for p in true_items_raw] if true_items_raw else ["`(none found)`"]
+    true_items_line = " • ".join(true_item_parts)
+
+    true_ship_line = f"True Ship Via: {true_ship_via}" if true_ship_via else "True Ship Via: Unknown"
+
+    pos_set = {p.strip() for p in pos_items_raw if p.strip()}
+    true_set = {p.strip() for p in true_items_raw if p.strip()}
+
+    missing_from_pos = sorted(true_set - pos_set)
+
+    mismatch_line = ""
+    if missing_from_pos:
+        missing_parts = [f"`{p.replace(' x ', ' × ')}`" for p in missing_from_pos]
+        mismatch_line = "\n⚠️ Missing from POS: " + " • ".join(missing_parts)
+
+    return f"{base}\n{true_ship_line}\nTrue Items: {true_items_line}{mismatch_line}"
 
 # ---------- Palletization helpers ----------
 def _fmt_in(x: float) -> str:
@@ -436,15 +525,40 @@ async def orderbot_flag2(interaction: discord.Interaction):
             "⚠️ Error fetching Flag 2 count or Magento status-change info."
         )
 
-@orderbot_group.command(name="order", description="Get order summary by internal ID or Magento number")
-@app_commands.describe(number="Internal order_id (e.g., 18XXXX) or Magento order # (e.g., 1000XXXX)")
+@orderbot_group.command(name="order", description="Get POS summary plus true Magento items")
+@app_commands.describe(number="Magento order # (e.g., 1000XXXX) or internal order_id / ABW-linked number")
 async def orderbot_order(interaction: discord.Interaction, number: str):
     try:
         await interaction.response.defer()
-        summary = get_order_summary(number)
-        styled = style_summary(summary)
+
+        # Keep using the ABW summary resolver you already trust
+        pos_summary = await asyncio.to_thread(get_order_summary, number)
+
+        # Resolve Magento order number from input
+        token = number.strip().lstrip("#")
+
+        # If user passed ABW order_id instead of Magento increment_id, get_order_summary may still work,
+        # but MySQL needs the Magento increment_id. Extract it from the POS summary if present.
+        magento_increment_id = token
+        if "(Magento #" in pos_summary:
+            try:
+                magento_increment_id = pos_summary.split("(Magento #", 1)[1].split(")", 1)[0].strip()
+            except Exception:
+                magento_increment_id = token
+
+        true_increment_id, true_ship_via, true_items = await asyncio.to_thread(
+            get_true_order_items, magento_increment_id
+        )
+
+        if not true_increment_id:
+            styled = style_summary(pos_summary) + "\n⚠️ True Magento items not found."
+        else:
+            styled = style_true_order_summary(
+                pos_summary, true_increment_id, true_ship_via, true_items
+            )
+
         await interaction.followup.send(styled)
-        logging.info(f"Handled /orderbot order. Token: {number} -> {summary}")
+        logging.info(f"Handled /orderbot order. Token: {number} -> Magento #{magento_increment_id}")
     except Exception as e:
         logging.error(f"Error in /orderbot order: {e}")
         await interaction.followup.send("⚠️ Error fetching order summary.")
