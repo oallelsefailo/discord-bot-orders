@@ -615,6 +615,14 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
             lines.append(f"**Layers used:** {p['layers_used']}")
             lines.append(f"**Height:** {_fmt_in(p['height'])}\"")
             lines.append(f"**Weight:** {_fmt_lb(p['weight'])} lbs")
+            cubic_feet = (PALLET_L * PALLET_W * p["height"]) / 1728.0
+            density = p["weight"] / cubic_feet
+            freight_class = get_freight_class(density)
+            lines.append(
+                f"**Freight:** 42×48×{_fmt_in(p['height'])}\" • "
+                f"{_fmt_lb(p['weight'])} lbs • "
+                f"Density: {density:.2f} lb/ft³ • Est. Class: **{freight_class}**"
+            )
         else:
             total_w = 0.0
             for idx, p in enumerate(pallets, start=1):

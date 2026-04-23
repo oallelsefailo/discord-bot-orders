@@ -1,0 +1,18 @@
+2026-04-23 12:58:52,766 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2026-04-23 12:58:52,767 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2026-04-23 12:58:52,767 - INFO - logging in using static token
+2026-04-23 12:58:56,442 - INFO - Shard ID None has connected to Gateway (Session ID: a13b1002532d1779fa6c0a6c23c79379).
+2026-04-23 12:58:58,452 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2026-04-23 12:58:58,629 - INFO - Slash commands synced.
+2026-04-23 12:59:14,953 - INFO - Handled /orderbot dim. size="15x15x7" boxes=466 weight=24.0 orientation=h -> per_layer=6 layers_max=8 
+2026-04-23 13:00:07,895 - INFO - Handled /orderbot dim. size="16x8x5" boxes=487 weight=2.3 orientation=h -> per_layer=15 layers_max=12 
+2026-04-23 13:55:07,778 - INFO - Handled /orderbot dim. size="19x19x14" boxes=31 weight=38.0 orientation=None -> per_layer=6 layers_max=3 
+2026-04-23 13:59:35,570 - INFO - Handled /orderbot dim. size="8x7x4" boxes=487 weight=2.2 orientation=h -> per_layer=36 layers_max=15 
+2026-04-23 14:04:45,379 - WARNING - PyNaCl is not installed, voice will NOT be supported
+2026-04-23 14:04:45,381 - WARNING - Privileged message content intent is missing, commands may not work as expected.
+2026-04-23 14:04:45,381 - INFO - logging in using static token
+2026-04-23 14:04:47,584 - INFO - Shard ID None has connected to Gateway (Session ID: 7b56455359e79069aec71726574d7c98).
+2026-04-23 14:04:49,595 - INFO - Logged in as OrderBot#1136 (ID: 1402401112266375249)
+2026-04-23 14:04:49,743 - INFO - Slash commands synced.
+2026-04-23 14:05:02,736 - INFO - Handled /orderbot dim. size="8x7x4" boxes=487 weight=2.2 orientation=h -> per_layer=36 layers_max=15 
+2026-04-23 14:05:15,502 - INFO - Handled /orderbot dim. size="8x7x4" boxes=244 weight=2.2 orientation=h -> per_layer=36 layers_max=15 
