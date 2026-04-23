@@ -56,25 +56,21 @@ WHERE order_type = 11
   AND CAST(added_date AS DATE) >= CAST(DATEADD(DAY, -2, GETDATE()) AS DATE);
 """
 
-# Parameterized summary query. Accepts either internal order_id OR Magento order number (sales_orders.po_no).
 ORDER_SUMMARY_SQL = r"""
 DECLARE @order_token NVARCHAR(64);
 SET @order_token = ?;  -- pyodbc binds here
 
 DECLARE @order_no NUMERIC(20,0) = NULL;
 
--- normalize token: trim, strip a leading '#'
 DECLARE @token NVARCHAR(64) = LTRIM(RTRIM(@order_token));
 IF LEFT(@token,1) = '#'
     SET @token = SUBSTRING(@token, 2, 63);
 
--- numeric-only? could be order_id or order_seq
 DECLARE @maybe_num NUMERIC(20,0) = CASE 
     WHEN @token NOT LIKE '%[^0-9]%' AND LEN(@token) > 0 THEN TRY_CAST(@token AS NUMERIC(20,0)) 
     ELSE NULL 
 END;
 
--- 1) direct internal order_id
 IF @maybe_num IS NOT NULL AND @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = o.order_id
@@ -82,7 +78,6 @@ BEGIN
     WHERE o.order_id = @maybe_num;
 END
 
--- 2) exact match on po_no (web/Magento orders). We already stripped '#', so compare to @token.
 IF @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = o.order_id
@@ -90,7 +85,6 @@ BEGIN
     WHERE LTRIM(RTRIM(o.po_no)) = @token;
 END
 
--- 3) numeric line order_seq → order_id
 IF @maybe_num IS NOT NULL AND @order_no IS NULL
 BEGIN
     SELECT TOP 1 @order_no = l.order_id
@@ -202,14 +196,8 @@ def get_flag2_count() -> int:
         return int(cur.fetchone()[0])
 
 def get_last_status_change_global():
-    """
-    Returns:
-      (increment_id, datetime, log_line)
-      or (None, None, None) if nothing found or connection fails
-    """
     try:
         import mysql.connector
-
         conn = mysql.connector.connect(
             host=MYSQL_HOST,
             port=MYSQL_PORT,
@@ -242,13 +230,8 @@ def get_order_summary(order_token: str) -> str:
         if not row or row[0] is None:
             return f"Not found: {order_token.strip()}"
         return str(row[0])
-    
+
 def get_true_order_items(order_number: str):
-    """
-    Returns:
-      (increment_id, shipping_description, items_string)
-      or (None, None, None) if not found / connection fails
-    """
     try:
         conn = mysql.connector.connect(
             host=MYSQL_HOST,
@@ -278,12 +261,10 @@ def style_summary(summary: str) -> str:
 
     order_part = parts[0]
     item_parts = [f"`{p.strip().replace(' x ', ' × ')}`" for p in parts[1:-2]]
-
     shipped_part = parts[-2].strip()
     fob_part = parts[-1].strip()
     shipped_fob_line = f"{shipped_part} | {fob_part}"
 
-    # Format: Order # **[number]** (Magento *#[number]*)
     if "(Magento #" in order_part:
         left, magento = order_part.split("(Magento #", 1)
         order_num = left.split("Order #", 1)[1].strip()
@@ -330,7 +311,6 @@ def style_true_order_summary(pos_summary: str, true_increment_id: str, true_ship
 
     pos_set = {p.strip() for p in pos_items_raw if p.strip()}
     true_set = {p.strip() for p in true_items_raw if p.strip()}
-
     missing_from_pos = sorted(true_set - pos_set)
 
     mismatch_line = ""
@@ -364,13 +344,10 @@ def parse_size(size_str: str) -> tuple[float, float, float]:
 
 def enumerate_orientations(L: float, W: float, H: float):
     return [
-        # Up = H
         {"deck_x": L, "deck_y": W, "up_z": H, "deck_name_x": "L", "deck_name_y": "W", "up_name": "H"},
         {"deck_x": W, "deck_y": L, "up_z": H, "deck_name_x": "W", "deck_name_y": "L", "up_name": "H"},
-        # Up = L
         {"deck_x": W, "deck_y": H, "up_z": L, "deck_name_x": "W", "deck_name_y": "H", "up_name": "L"},
         {"deck_x": H, "deck_y": W, "up_z": L, "deck_name_x": "H", "deck_name_y": "W", "up_name": "L"},
-        # Up = W
         {"deck_x": L, "deck_y": H, "up_z": W, "deck_name_x": "L", "deck_name_y": "H", "up_name": "W"},
         {"deck_x": H, "deck_y": L, "up_z": W, "deck_name_x": "H", "deck_name_y": "L", "up_name": "W"},
     ]
@@ -386,25 +363,15 @@ def fit_on_deck(deck_x: float, deck_y: float):
 
     if pl1 >= pl2:
         return {
-            "per_layer": pl1,
-            "nx": nx1,
-            "ny": ny1,
-            "deck_used_x": deck_x,
-            "deck_used_y": deck_y,
-            "pallet_long": PALLET_L,
-            "pallet_wide": PALLET_W,
-            "swapped": False,
+            "per_layer": pl1, "nx": nx1, "ny": ny1,
+            "deck_used_x": deck_x, "deck_used_y": deck_y,
+            "pallet_long": PALLET_L, "pallet_wide": PALLET_W, "swapped": False,
         }
     else:
         return {
-            "per_layer": pl2,
-            "nx": nx2,
-            "ny": ny2,
-            "deck_used_x": deck_x,
-            "deck_used_y": deck_y,
-            "pallet_long": PALLET_W,
-            "pallet_wide": PALLET_L,
-            "swapped": True,
+            "per_layer": pl2, "nx": nx2, "ny": ny2,
+            "deck_used_x": deck_x, "deck_used_y": deck_y,
+            "pallet_long": PALLET_W, "pallet_wide": PALLET_L, "swapped": True,
         }
 
 def layers_max(up_z: float) -> int:
@@ -415,7 +382,7 @@ def layers_max(up_z: float) -> int:
 
 def orientation_phrase(L: float, W: float, H: float, up_z: float) -> str:
     dims_sorted = sorted([L, W, H])
-    smallest, middle, largest = dims_sorted[0], dims_sorted[1], dims_sorted[2]
+    smallest, largest = dims_sorted[0], dims_sorted[2]
 
     def close(a, b):
         return abs(a - b) <= 1e-6
@@ -485,12 +452,35 @@ def score_orientations(L: float, W: float, H: float, forced_up: float = None):
                 best = cand
     return best
 
+def get_freight_class(density: float) -> str:
+    if density >= 30:
+        return "60"
+    elif density >= 22.5:
+        return "65"
+    elif density >= 15:
+        return "70"
+    elif density >= 12:
+        return "85"
+    elif density >= 10:
+        return "92.5"
+    elif density >= 8:
+        return "100"
+    elif density >= 6:
+        return "125"
+    elif density >= 4:
+        return "175"
+    elif density >= 2:
+        return "250"
+    elif density >= 1:
+        return "300"
+    else:
+        return "400"
+
 # ---------- Bot setup ----------
 intents = discord.Intents.default()
 client = commands.Bot(command_prefix="!", intents=intents)
 tree = client.tree
 
-# Create a slash-command GROUP: /orderbot ...
 orderbot_group = app_commands.Group(name="orderbot", description="Order tools")
 
 @orderbot_group.command(
@@ -515,15 +505,11 @@ async def orderbot_flag2(interaction: discord.Interaction):
             lines.append("🕒 Last Magento Status Change: **(none found)**")
 
         await interaction.followup.send("\n".join(lines))
-        logging.info(
-            f"/orderbot flag2 -> count={count}, last_magento={inc_id}@{last_dt}"
-        )
+        logging.info(f"/orderbot flag2 -> count={count}, last_magento={inc_id}@{last_dt}")
 
     except Exception as e:
         logging.error(f"Error in /orderbot flag2: {e}")
-        await interaction.followup.send(
-            "⚠️ Error fetching Flag 2 count or Magento status-change info."
-        )
+        await interaction.followup.send("⚠️ Error fetching Flag 2 count or Magento status-change info.")
 
 @orderbot_group.command(name="order", description="Get POS summary plus true Magento items")
 @app_commands.describe(number="Magento order # (e.g., 1000XXXX) or internal order_id / ABW-linked number")
@@ -531,14 +517,9 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
     try:
         await interaction.response.defer()
 
-        # Keep using the ABW summary resolver you already trust
         pos_summary = await asyncio.to_thread(get_order_summary, number)
 
-        # Resolve Magento order number from input
         token = number.strip().lstrip("#")
-
-        # If user passed ABW order_id instead of Magento increment_id, get_order_summary may still work,
-        # but MySQL needs the Magento increment_id. Extract it from the POS summary if present.
         magento_increment_id = token
         if "(Magento #" in pos_summary:
             try:
@@ -612,17 +593,13 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
             await interaction.followup.send("❌ Box exceeds the 65\" total height limit (60\" usable above pallet) in every orientation.")
             return
 
-        # Orientation wording
         orient_text = orientation_phrase(L, W, H, best["up_z"])
 
         along_42 = best["deck_used_x"] if best["pallet_long"] == PALLET_L else best["deck_used_y"]
         along_48 = best["deck_used_y"] if best["pallet_long"] == PALLET_L else best["deck_used_x"]
 
-        deck_line = (
-            f'Deck: {_fmt_in(along_42)}" along 42", {_fmt_in(along_48)}" along 48"'
-        )
+        deck_line = f'Deck: {_fmt_in(along_42)}" along 42", {_fmt_in(along_48)}" along 48"'
 
-        # Palletize
         pallets = palletize(boxes, best["per_layer"], best["up_z"], weight)
 
         # Build output
@@ -638,7 +615,6 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
             lines.append(f"**Layers used:** {p['layers_used']}")
             lines.append(f"**Height:** {_fmt_in(p['height'])}\"")
             lines.append(f"**Weight:** {_fmt_lb(p['weight'])} lbs")
-
         else:
             total_w = 0.0
             for idx, p in enumerate(pallets, start=1):
@@ -647,13 +623,22 @@ async def orderbot_dim(interaction: discord.Interaction, size: str, boxes: int, 
                     f"Height: {_fmt_in(p['height'])}\" • Weight: {_fmt_lb(p['weight'])} lbs"
                 )
                 total_w += p["weight"]
-            lines.append(f"**Total:** {boxes} boxes • {len(pallets)} pallets • {_fmt_lb(total_w)} lbs")
+
+            # Freight class based on first/full pallet
+            full_pallet = pallets[0]
+            cubic_feet = (PALLET_L * PALLET_W * full_pallet["height"]) / 1728.0
+            density = full_pallet["weight"] / cubic_feet
+            freight_class = get_freight_class(density)
+            lines.append(
+                f"**Total:** {boxes} boxes • {len(pallets)} pallets • {_fmt_lb(total_w)} lbs • "
+                f"Density: {density:.2f} lb/ft³ • Est. Class: **{freight_class}**"
+            )
 
         await interaction.followup.send("\n".join(lines))
 
         logging.info(
             f'Handled /orderbot dim. size="{size}" boxes={boxes} weight={weight} orientation={orientation} '
-            f'-> per_layer={best["per_layer"]} layers_max={best["layers_max"]}'
+            f'-> per_layer={best["per_layer"]} layers_max={best["layers_max"]} '
         )
     except Exception as e:
         logging.error(f"Error in /orderbot dim: {e}")
