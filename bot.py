@@ -170,6 +170,16 @@ WHERE o.increment_id = %s
 GROUP BY o.increment_id, o.shipping_description;
 """
 
+PAYMENT_METHOD_SQL = """
+SELECT method
+FROM sales_order_payment
+WHERE parent_id = (
+    SELECT entity_id
+    FROM sales_order
+    WHERE increment_id = %s
+);
+"""
+
 # ---------- MySQL (Magento) query ----------
 LAST_STATUS_CHANGE_SQL = """
 SELECT
@@ -254,6 +264,37 @@ def get_true_order_items(order_number: str):
         logging.warning(f"MySQL connection failed in get_true_order_items: {e}")
         return (None, None, None)
 
+def get_payment_label(order_number: str) -> str:
+    method_map = {
+        "checkmo": "Open Account",
+        "paypal_express": "PayPal",
+        "stripe_payments": "Credit Card",
+        "stripe_payments_express": "Credit Card",
+        "braintree": "Credit Card",
+        "free": "Free / Sample",
+    }
+    try:
+        conn = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DB,
+            connection_timeout=5,
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute(PAYMENT_METHOD_SQL, (order_number.strip().lstrip("#"),))
+            row = cur.fetchone()
+            if not row:
+                return "Unknown"
+            return method_map.get(row[0], "Unknown")
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"MySQL connection failed in get_payment_label: {e}")
+        return "Unknown"
+    
 def style_summary(summary: str) -> str:
     parts = [p.strip() for p in summary.split("|")]
     if len(parts) < 3:
@@ -530,6 +571,7 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
         true_increment_id, true_ship_via, true_items = await asyncio.to_thread(
             get_true_order_items, magento_increment_id
         )
+        payment_label = await asyncio.to_thread(get_payment_label, magento_increment_id)
 
         if not true_increment_id:
             styled = style_summary(pos_summary) + "\n⚠️ True Magento items not found."
@@ -537,6 +579,8 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
             styled = style_true_order_summary(
                 pos_summary, true_increment_id, true_ship_via, true_items
             )
+
+        styled += f"Payment: {payment_label}"
 
         await interaction.followup.send(styled)
         logging.info(f"Handled /orderbot order. Token: {number} -> Magento #{magento_increment_id}")
