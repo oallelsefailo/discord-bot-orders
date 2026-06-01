@@ -180,6 +180,22 @@ WHERE parent_id = (
 );
 """
 
+ORDER_NOTES_SQL = """
+SELECT f.frontend_label, v.value
+FROM swissup_checkoutfields_values v
+JOIN swissup_checkoutfields_field f ON f.field_id = v.field_id
+WHERE v.order_id = (
+    SELECT entity_id
+    FROM sales_order
+    WHERE increment_id = %s
+)
+AND v.field_id = 1
+AND v.value IS NOT NULL
+AND v.value <> ''
+AND v.value <> '0'
+ORDER BY v.field_id;
+"""
+
 # ---------- MySQL (Magento) query ----------
 LAST_STATUS_CHANGE_SQL = """
 SELECT
@@ -295,6 +311,29 @@ def get_payment_label(order_number: str) -> str:
         logging.warning(f"MySQL connection failed in get_payment_label: {e}")
         return "Unknown"
     
+
+def get_order_notes(order_number: str) -> list:
+    try:
+        conn = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DB,
+            connection_timeout=5,
+        )
+        try:
+            cur = conn.cursor()
+            cur.execute(ORDER_NOTES_SQL, (order_number.strip().lstrip("#"),))
+            rows = cur.fetchall()
+            return [(row[0], row[1]) for row in rows] if rows else []
+        finally:
+            conn.close()
+    except Exception as e:
+        logging.warning(f"MySQL connection failed in get_order_notes: {e}")
+        return []
+    
+
 def style_summary(summary: str) -> str:
     parts = [p.strip() for p in summary.split("|")]
     if len(parts) < 3:
@@ -572,6 +611,7 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
             get_true_order_items, magento_increment_id
         )
         payment_label = await asyncio.to_thread(get_payment_label, magento_increment_id)
+        order_notes = await asyncio.to_thread(get_order_notes, magento_increment_id)
 
         if not true_increment_id:
             styled = style_summary(pos_summary) + "\n⚠️ True Magento items not found."
@@ -580,7 +620,9 @@ async def orderbot_order(interaction: discord.Interaction, number: str):
                 pos_summary, true_increment_id, true_ship_via, true_items
             )
 
-        styled += f"Payment: {payment_label}"
+        styled += f"\nPayment: {payment_label}"
+        for label, value in order_notes:
+            styled += f"\n{label}: {value}"
 
         await interaction.followup.send(styled)
         logging.info(f"Handled /orderbot order. Token: {number} -> Magento #{magento_increment_id}")
