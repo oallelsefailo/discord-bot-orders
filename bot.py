@@ -313,6 +313,7 @@ def get_payment_label(order_number: str) -> str:
     
 
 def get_order_notes(order_number: str) -> list:
+    KNOWN_PREFIXES = ("FedEx Number:", "UPS Number:", "PO Number:")
     try:
         conn = mysql.connector.connect(
             host=MYSQL_HOST,
@@ -324,9 +325,31 @@ def get_order_notes(order_number: str) -> list:
         )
         try:
             cur = conn.cursor()
+
+            # Try checkoutfields first
             cur.execute(ORDER_NOTES_SQL, (order_number.strip().lstrip("#"),))
             rows = cur.fetchall()
-            return [(row[0], row[1]) for row in rows] if rows else []
+            if rows:
+                return [(row[0], row[1]) for row in rows]
+
+            # Fall back to request_xml
+            cur.execute(
+                "SELECT request_xml FROM order_export_queue WHERE order_number = %s",
+                (order_number.strip().lstrip("#"),)
+            )
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return []
+
+            import re
+            matches = re.findall(r'<ordmsg><type>I</type><text>(.*?)</text></ordmsg>', row[0])
+            for text in matches:
+                if not any(text.startswith(p) for p in KNOWN_PREFIXES):
+                    note = text.removeprefix("Notes:").strip()
+                    if note:
+                        return [("Comments/Special Instructions", note)]
+            return []
+
         finally:
             conn.close()
     except Exception as e:
